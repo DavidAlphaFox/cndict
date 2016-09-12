@@ -32,6 +32,10 @@ data Token = KnownWord Entry | UnknownWord Text
 -- [[A,AB],[B],[C]]
 -- [ [[A,B],[AB]]
 -- , [[C]] ]
+-- 对于ABC 来说 T.tails txt 会生成
+-- [ABC,BC,C]
+-- 这个函数通过不断的去lookup 字典中相应的字段
+-- 如果匹配了啧返回KnownWord，否则返回UnknownWord
 splitText :: Text -> [[Token]]
 splitText txt =
   [ case CC.lookupMatches offset of

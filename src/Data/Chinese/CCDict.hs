@@ -36,29 +36,38 @@ import Control.Exception (evaluate)
 
 -- | Load DB into memory. Otherwise it happens when the DB
 --   is first used.
+-- 初始化整个Dict
 initiate :: IO ()
 initiate = do
   evaluate ccDict
   return ()
 
 data CCDict = CCDict !T.Array !Int (U.UArray Int Int)
-
+-- Text 是一个整块的内存区域
+-- 通过内部的buffer，长度和偏移量
 mkCCDict :: Text -> CCDict
 mkCCDict text@(T.Text arr _ len) =
     CCDict arr len
       (U.listArray (0,n-1) offsets)
   where
+    -- 将文件分行
+    -- 按新行进行分割
     ls = T.lines text
+    -- 得到相应的offset
     offsets =
       [ offset
       | T.Text _ offset _length <- ls ]
+    -- 行数
     n = length ls
 
 ccDict :: CCDict
 ccDict = mkCCDict utfData
   where
+    -- 加载数据
     utfData = unsafePerformIO $ do
+      -- 通过cabal的data-files生成的函数，找到相应的文件路径
       path  <- getDataFileName "data/dict.sorted"
+      -- 一次性的读入到内存中
       T.readFile path
 
 ccDictNth :: Int -> CCDict -> Text
@@ -99,6 +108,8 @@ lookupMatches key =
       then Nothing
       else Just entries
   where
+    -- 增长序列
+    -- 得到所有keys
     keys = tail $ T.inits key
     entries = worker (bounds ccDict) keys
     worker _ [] = []
@@ -118,6 +129,7 @@ lookupMatch key
       Just (first, _newUpper) ->
         scrapeEntry ccDict first key
     where
+      -- 得到字典的最大和最小范围
       (lower, upper) = bounds ccDict
 
 allVariants :: [Variant]
