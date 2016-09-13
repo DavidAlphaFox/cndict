@@ -100,7 +100,7 @@ greedyGroups = map worker
                              (maximum $ map (maximum.map tokenLength) tss)) tss
     onlyWithLength len tlen ts =
       length ts == len -- && maximum (map tokenLength ts) == tlen
-
+-- 计算每个token的长度
 tokenLength UnknownWord{} = 0
 tokenLength (KnownWord e) = T.length (entrySimplified e)
 

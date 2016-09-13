@@ -74,30 +74,46 @@ ccDictNth :: Int -> CCDict -> Text
 ccDictNth n (CCDict arr totalLen offsets) =
     T.text arr offset len
   where
+    -- 取offsets的索引号的上界
     lastIdx = snd (U.bounds offsets)
+    -- 取出第n个offset
     offset = offsets U.! n
+    -- 计算dict中第n个词语的长度
+    -- 如果n是最后一个词，那么它的长度应该为totalLen - offset - 1
+    -- 如果n不是最后一个词，那么的长度应该是n+1个词的位移 - 自己的位移 - 1
     len
       | lastIdx == n = totalLen - offset - 1
       | otherwise    = offsets U.! (n+1) - offset - 1
 
 bounds :: CCDict -> (Int, Int)
 bounds (CCDict _ _ offsets) = U.bounds offsets
-
+-- 前缀查找
 findPrefix :: CCDict -> Int -> Int -> Int -> Text -> Maybe (Int,Int)
 findPrefix dict maxUpper lower upper key
+  -- 下界比上界还打
   | lower > upper = Nothing
   | otherwise =
     case compare (T.take len key) (T.take len val) of
+      -- 比字典中的值小
       LT -> findPrefix dict (middle-1) lower (middle-1) key
+      -- 比字典中的值大
       GT -> findPrefix dict maxUpper (middle+1) upper key
+      -- 相等了
       EQ ->
         case compare (T.length key) (T.length val) of
+          -- 长度比字典中的大
           GT -> findPrefix dict maxUpper (middle+1) upper key
+          -- 剩下的情况，继续向下找
+          -- fromMaybe 接收一个默认值和一个返回值
+          -- 如果返回值是Nothing则返回默认值
           _ -> Just $ fromMaybe (middle, maxUpper) $
                   findPrefix dict maxUpper lower (middle-1) key
   where
+    -- 二分查找
     middle = (upper - lower) `div` 2 + lower
+    -- 从字典的中间拿出一个值
     val = T.takeWhile (/='\t') $ ccDictNth middle dict
+    -- 得到最小的比较长度
     len = min (T.length val) (T.length key)
 
 lookupMatches :: Text -> Maybe [Entry]
@@ -129,7 +145,7 @@ lookupMatch key
       Just (first, _newUpper) ->
         scrapeEntry ccDict first key
     where
-      -- 得到字典的最大和最小范围
+      -- 得到字典的下界和上界
       (lower, upper) = bounds ccDict
 
 allVariants :: [Variant]
@@ -146,22 +162,32 @@ scrapeEntry dict nth key =
   where
     variants = scrapeVariants dict nth key
 
+-- 得到所有可能的变形    
+-- 如果 n > 字典的上界那么应该返回空列表
+-- 如果 字典中第n个词语去除掉tab键 
 scrapeVariants :: CCDict -> Int -> Text -> [Variant]
 scrapeVariants dict nth key
   | nth > snd (bounds dict) = []
   | T.takeWhile (/='\t') raw == key =
+      -- 拼接n+1的单词
       parseVariant raw : scrapeVariants dict (nth+1) key
+    -- 此处会跳出，不用担心遍历了整个词典    
   | otherwise = []
     where
       raw = ccDictNth nth dict
 
 parseVariant :: Text -> Variant
 parseVariant line =
+  --  按照tab键进行分割
   case T.splitOn "\t" line of
+    -- 中文，词频，拼音，英文
     [chinese, count, pinyin, english] ->
       mkVariant chinese chinese count pinyin english
+    -- 有简体和繁体  
     [traditional, simplified, "T", count, pinyin, english] ->
       mkVariant traditional simplified count pinyin english
+    -- 同样是由简体和繁体
+    -- 简体主导
     [simplified, traditional, "S", count, pinyin, english] ->
       mkVariant traditional simplified count pinyin english
     _ -> error $ "invalid variant: " ++ T.unpack line
@@ -222,11 +248,11 @@ dominantVariant :: Entry -> Variant
 dominantVariant (Entry _o v vs) =
     foldr dom v vs
   where
+    -- 比较两个词的，词频
+    -- 如果 v2的词频大于v1的时候，那么将v2返回
     dom v1 v2
-      | variantWordFrequency v1 < variantWordFrequency v2 =
-        v2
-      | otherwise =
-        v1
+      | variantWordFrequency v1 < variantWordFrequency v2 = v2
+      | otherwise = v1
 
 entrySimplified :: Entry -> Text
 entrySimplified = variantSimplified . dominantVariant
